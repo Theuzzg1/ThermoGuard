@@ -1,0 +1,770 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Safemachine Thermoguard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Montserrat:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* LAYOUT: página única, escura por padrão (como o slide deck). Hero com leitura ao vivo,
+   fluxo Medir > Decidir > Agir, simulador do ESP32 e, em destaque, o celular do operário. */
+
+:root {
+  /* Cores (modo escuro) */
+  --bg: #060a0d;
+  --surface: #0d1419;
+  --surface2: #131d25;
+  --line: #1f2e38;
+  --fg: #e8f1f5;
+  --muted: #8aa0ad;
+  --accent: #2fd4e0;
+  --ok: #4ade6a;
+  --warn: #ffc83d;
+  --crit: #ff453a;
+  /* LEDs e zonas: iguais nos dois temas */
+  --led-ok: #4ade6a;
+  --led-warn: #ffc83d;
+  --led-crit: #ff3b30;
+  /* Tela do celular: sempre escura, como um aparelho real */
+  --ph-frame: #1a232b;
+  --ph-bg: #0a1015;
+  --ph-card: #141d25;
+  --ph-line: #263642;
+  --ph-fg: #f1f6f9;
+  --ph-muted: #8ea3b0;
+  --ph-ok: #4ade6a;
+  --ph-warn: #ffc83d;
+  --ph-crit: #ff453a;
+  /* Tipografia */
+  --f-display: 'Unbounded', 'Arial Black', system-ui, sans-serif;
+  --f-body: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #edf3f5; --surface: #ffffff; --surface2: #e3ecf0; --line: #c7d6dd;
+    --fg: #0b1a22; --muted: #4a6270; --accent: #0a7f8a;
+    --ok: #15803d; --warn: #92600a; --crit: #c8281c;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #edf3f5; --surface: #ffffff; --surface2: #e3ecf0; --line: #c7d6dd;
+  --fg: #0b1a22; --muted: #4a6270; --accent: #0a7f8a;
+  --ok: #15803d; --warn: #92600a; --crit: #c8281c;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 16px/1.6 var(--f-body);
+  padding-block: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  -webkit-font-smoothing: antialiased;
+}
+body[data-level="ok"]   { --c: var(--ok);   --lc: var(--led-ok);   --pc: var(--ph-ok); }
+body[data-level="warn"] { --c: var(--warn); --lc: var(--led-warn); --pc: var(--ph-warn); }
+body[data-level="crit"] { --c: var(--crit); --lc: var(--led-crit); --pc: var(--ph-crit); }
+.lv-ok   { --pc: var(--ph-ok); }
+.lv-warn { --pc: var(--ph-warn); }
+.lv-crit { --pc: var(--ph-crit); }
+.lv-info { --pc: var(--ph-muted); }
+
+.wrap { max-width: 1120px; margin: 0 auto; }
+section { padding-block: clamp(48px, 8vw, 96px); }
+h1, h2, h3, h4, p { margin: 0; }
+h1, h2 { font-family: var(--f-display); text-wrap: balance; letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.4rem, 3.6vw, 2.1rem); font-weight: 700; line-height: 1.15; }
+h3 { font-size: 1rem; font-weight: 600; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.eyebrow {
+  font: 500 0.75rem/1 var(--f-mono); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent);
+}
+.lead { color: var(--muted); max-width: 62ch; margin-top: 14px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* Barra do topo */
+.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; padding-block: 20px; }
+.brand { font: 700 0.85rem/1 var(--f-display); letter-spacing: 0.02em; }
+.top nav { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 0.875rem; }
+.top nav a { color: var(--muted); text-decoration: none; }
+.top nav a:hover { color: var(--fg); }
+
+/* Pills e botões */
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 99px;
+  font: 600 0.78rem/1.4 var(--f-body); letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--c); background: color-mix(in srgb, var(--c) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 40%, transparent);
+}
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--lc); }
+.btn {
+  font: 600 0.875rem/1.2 var(--f-body); padding: 11px 16px; border-radius: 8px; cursor: pointer;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); transition: border-color .15s, background .15s;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.btn.danger { background: var(--crit); color: #fff; border-color: var(--crit); }
+.btn[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Hero */
+.hero { padding-block: clamp(32px, 6vw, 72px) clamp(48px, 7vw, 88px); }
+.hero-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: clamp(28px, 5vw, 64px); align-items: center; }
+.hero h1 { font-size: clamp(2rem, 6.4vw, 4.1rem); font-weight: 700; line-height: 1.02; margin-top: 18px; overflow-wrap: anywhere; }
+.hero h1 span { color: var(--accent); }
+.hero .lead { font-size: 1.05rem; margin-top: 22px; }
+.hero .btnrow { margin-top: 28px; }
+.live { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; min-width: 0; }
+.live-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.live-name { font-weight: 600; }
+.live-sub { color: var(--muted); font-size: 0.8rem; }
+.live-temp { font: 500 clamp(2.8rem, 8vw, 4rem)/1 var(--f-mono); margin-top: 22px; color: var(--c); font-variant-numeric: tabular-nums; }
+.live-temp small { font-size: 0.4em; color: var(--muted); margin-left: 4px; }
+.scale { position: relative; height: 10px; border-radius: 99px; margin-top: 22px;
+  background: linear-gradient(to right, var(--led-ok) 0 50%, var(--led-warn) 50% 75%, var(--led-crit) 75% 100%); }
+.scale i { position: absolute; top: -5px; width: 4px; height: 20px; border-radius: 2px; background: var(--fg); box-shadow: 0 0 0 2px var(--bg); transform: translateX(-50%); transition: left .4s; }
+.scale-labels { display: flex; justify-content: space-between; font: 500 0.7rem/1 var(--f-mono); color: var(--muted); margin-top: 10px; }
+
+/* Problema */
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(20px, 4vw, 48px); margin-top: 36px; }
+.list { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }
+.list li { padding-left: 22px; position: relative; color: var(--fg); }
+.list li::before { content: ""; position: absolute; left: 0; top: 0.7em; width: 10px; height: 2px; background: var(--accent); }
+.block { min-width: 0; }
+.block h3 { font-family: var(--f-display); font-size: 1.05rem; font-weight: 500; }
+
+/* Fluxo */
+.flow { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 28px; margin-top: 36px; }
+.stage { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.stage:not(:last-child)::after {
+  content: ""; position: absolute; right: -22px; top: 50%; width: 16px; height: 16px; border-top: 2px solid var(--accent); border-right: 2px solid var(--accent);
+  transform: translateY(-50%) rotate(45deg);
+}
+.stage-label { font: 500 0.72rem/1 var(--f-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.item { display: grid; gap: 2px; padding-top: 14px; border-top: 1px solid var(--line); }
+.item:first-of-type { padding-top: 0; border-top: 0; }
+.item b { font-weight: 600; }
+.item span { color: var(--muted); font-size: 0.9rem; }
+.item code { font-family: var(--f-mono); font-size: 0.82rem; color: var(--accent); overflow-wrap: anywhere; }
+
+/* Simulador */
+.sim { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 20px; margin-top: 36px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; min-width: 0; }
+.card h3 { margin-bottom: 4px; }
+.card .sub { color: var(--muted); font-size: 0.875rem; }
+.ctrl-temp { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 22px; }
+.ctrl-temp output { font: 500 2rem/1 var(--f-mono); color: var(--c); font-variant-numeric: tabular-nums; }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 10px; margin: 18px 0 8px; border-radius: 99px; cursor: pointer;
+  background: linear-gradient(to right, var(--led-ok) 0 50%, var(--led-warn) 50% 75%, var(--led-crit) 75% 100%); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--fg); border: 4px solid var(--bg); box-shadow: 0 0 0 2px var(--fg); }
+input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--fg); border: 4px solid var(--bg); box-shadow: 0 0 0 2px var(--fg); }
+.ctrl .btnrow { margin-top: 18px; }
+.hint { color: var(--muted); font-size: 0.8rem; margin-top: 14px; }
+
+.out-row { display: grid; grid-template-columns: auto auto 1fr; gap: 22px; align-items: center; margin-top: 20px; }
+.leds { display: flex; gap: 12px; }
+.led { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: color-mix(in srgb, var(--l) 16%, var(--surface2)); transition: background .2s, box-shadow .2s; }
+.led[data-led="ok"] { --l: var(--led-ok); }
+.led[data-led="warn"] { --l: var(--led-warn); }
+.led[data-led="crit"] { --l: var(--led-crit); }
+.led.on { background: var(--l); box-shadow: 0 0 18px 2px color-mix(in srgb, var(--l) 65%, transparent); border-color: var(--l); }
+.buzzer { width: 44px; height: 44px; color: var(--muted); }
+.buzzer.on { color: var(--led-crit); }
+.buzzer .wave { opacity: 0; }
+.buzzer.on .wave { animation: wave 0.8s infinite; }
+.buzzer.on .wave:nth-of-type(2) { animation-delay: .25s; }
+@keyframes wave { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+.oled { background: #04080b; color: #7fe9f2; font: 500 0.82rem/1.55 var(--f-mono); padding: 10px 14px; border-radius: 6px; border: 3px solid #1b252c; min-width: 0; }
+.cap { font: 500 0.68rem/1 var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
+.rules { display: grid; gap: 8px; margin-top: 22px; }
+.rule { display: grid; grid-template-columns: 92px 1fr; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+.rule code { font: 500 0.8rem var(--f-mono); }
+.rule.on { color: var(--fg); border-color: var(--rc); background: color-mix(in srgb, var(--rc) 12%, transparent); }
+.rule[data-r="ok"] { --rc: var(--ok); } .rule[data-r="warn"] { --rc: var(--warn); } .rule[data-r="crit"] { --rc: var(--crit); }
+.rule.on code { color: var(--rc); }
+.mqtt { margin-top: 18px; }
+.mqtt code { display: block; font: 500 0.78rem/1.6 var(--f-mono); background: var(--surface2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: pre; }
+
+/* Celular */
+.mobile-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); align-items: start; margin-top: 36px; }
+.phone-col { display: grid; gap: 16px; justify-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--surface); }
+.seg button { font: 600 0.85rem/1 var(--f-body); border: 0; background: transparent; color: var(--muted); padding: 10px 16px; border-radius: 8px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+.phone {
+  width: 330px; max-width: 100%; height: 680px; border-radius: 46px; background: var(--ph-bg);
+  border: 9px solid var(--ph-frame); box-shadow: 0 30px 70px -20px rgba(0,0,0,.55), 0 0 0 1px var(--line);
+  position: relative; overflow: hidden; color: var(--ph-fg); font-family: var(--f-body);
+}
+.phone.alarm { animation: buzz .7s infinite; }
+.phone.alarm::after { content: ""; position: absolute; inset: 0; border-radius: 36px; box-shadow: inset 0 0 0 3px var(--ph-crit), inset 0 0 40px color-mix(in srgb, var(--ph-crit) 40%, transparent); pointer-events: none; }
+@keyframes buzz { 0%, 100% { transform: translateX(0); } 15% { transform: translateX(-3px) rotate(-.4deg); } 30% { transform: translateX(3px) rotate(.4deg); } 45% { transform: translateX(-2px); } 60% { transform: translateX(2px); } 75% { transform: translateX(0); } }
+.statusbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px 0; font: 600 0.78rem/1 var(--f-body); position: relative; z-index: 2; }
+.statusbar svg { width: 16px; height: 12px; }
+.statusbar .sb-r { display: flex; gap: 6px; align-items: center; }
+.ph-screen { position: absolute; inset: 0; display: flex; flex-direction: column; padding-top: 0; }
+.lock { background: radial-gradient(120% 70% at 50% 0%, #12323b 0%, var(--ph-bg) 62%); }
+.clock { text-align: center; margin-top: 30px; }
+.clock .t { font: 500 3.6rem/1 var(--f-display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.clock .d { color: var(--ph-muted); font-size: 0.85rem; margin-top: 8px; text-transform: capitalize; }
+.notifs { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 14px 18px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: none; }
+.notif { background: color-mix(in srgb, var(--ph-card) 88%, transparent); border: 1px solid var(--ph-line); border-radius: 18px; padding: 12px 14px; cursor: pointer; backdrop-filter: blur(8px); }
+.notif.fresh { animation: slide .35s ease-out; }
+@keyframes slide { from { transform: translateY(-14px); opacity: 0; } to { transform: none; opacity: 1; } }
+.notif.lv-crit:not(.acked) { border-color: var(--pc); animation: buzz .7s 3; }
+.n-top { display: flex; align-items: center; gap: 8px; font: 600 0.68rem/1 var(--f-body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ph-muted); }
+.n-ic { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; background: var(--pc); color: #0a1015; }
+.n-ic svg { width: 13px; height: 13px; }
+.n-top time { margin-left: auto; letter-spacing: 0; text-transform: none; font-weight: 500; }
+.notif h4 { font-size: 0.9rem; font-weight: 600; margin-top: 8px; color: var(--pc); }
+.notif p { font-size: 0.82rem; line-height: 1.45; color: var(--ph-fg); margin-top: 3px; }
+.n-acts { display: flex; gap: 8px; margin-top: 10px; }
+.n-acts button, .app-btn { font: 600 0.8rem/1 var(--f-body); border-radius: 10px; padding: 10px 12px; cursor: pointer; border: 1px solid var(--ph-line); background: transparent; color: var(--ph-fg); }
+.n-acts button.main, .app-btn.main { background: var(--ph-crit); border-color: var(--ph-crit); color: #fff; }
+.n-done { font-size: 0.75rem; color: var(--ph-ok); margin-top: 8px; font-weight: 500; }
+.ph-empty { margin: auto; text-align: center; color: var(--ph-muted); font-size: 0.85rem; padding: 20px; }
+.homebar { width: 110px; height: 4px; border-radius: 4px; background: var(--ph-fg); opacity: .5; margin: 0 auto 8px; flex: none; }
+
+.app { background: var(--ph-bg); }
+.app-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 18px 14px; scrollbar-width: none; display: flex; flex-direction: column; gap: 14px; }
+.app-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.app-head b { display: block; font-size: 1.05rem; }
+.app-head small { color: var(--ph-muted); font-size: 0.75rem; }
+.ph-pill { font: 700 0.68rem/1 var(--f-body); letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 10px; border-radius: 99px; color: var(--pc); background: color-mix(in srgb, var(--pc) 16%, transparent); border: 1px solid color-mix(in srgb, var(--pc) 45%, transparent); }
+.big { font: 500 3.4rem/1 var(--f-mono); color: var(--pc); font-variant-numeric: tabular-nums; }
+.big small { font-size: .38em; color: var(--ph-muted); margin-left: 4px; }
+.ph-scale { position: relative; height: 8px; border-radius: 8px; background: linear-gradient(to right, var(--led-ok) 0 50%, var(--led-warn) 50% 75%, var(--led-crit) 75% 100%); }
+.ph-scale i { position: absolute; top: -4px; width: 4px; height: 16px; background: #fff; border-radius: 2px; transform: translateX(-50%); transition: left .4s; }
+.ph-card { background: var(--ph-card); border: 1px solid var(--ph-line); border-radius: 14px; padding: 12px; }
+.ph-card h5 { margin: 0 0 8px; font: 600 0.68rem/1 var(--f-body); letter-spacing: .1em; text-transform: uppercase; color: var(--ph-muted); }
+.spark { width: 100%; height: 86px; display: block; }
+.app-acts { display: grid; gap: 8px; }
+.app-btn { width: 100%; padding: 13px; font-size: .85rem; }
+.app-note { font-size: .78rem; color: var(--ph-ok); }
+.hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hist li { display: grid; grid-template-columns: 8px 1fr auto; gap: 10px; align-items: start; font-size: .78rem; line-height: 1.35; }
+.hist li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pc); margin-top: 5px; }
+.hist time { color: var(--ph-muted); font-family: var(--f-mono); font-size: .72rem; }
+
+/* Cartões de nível */
+.levels { display: grid; gap: 14px; min-width: 0; }
+.lvl { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 10px; transition: border-color .2s, background .2s; min-width: 0; }
+.lvl.on { border-color: var(--lc2); background: color-mix(in srgb, var(--lc2) 9%, var(--surface)); }
+.lvl[data-l="ok"] { --lc2: var(--ok); --c: var(--ok); --lc: var(--led-ok); }
+.lvl[data-l="warn"] { --lc2: var(--warn); --c: var(--warn); --lc: var(--led-warn); }
+.lvl[data-l="crit"] { --lc2: var(--crit); --c: var(--crit); --lc: var(--led-crit); }
+.lvl-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.lvl-range { font: 500 0.8rem var(--f-mono); color: var(--muted); }
+.lvl p { color: var(--muted); font-size: 0.92rem; }
+.lvl p b { color: var(--fg); font-weight: 600; }
+.sms { font: 500 0.78rem/1.55 var(--f-mono); background: var(--surface2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; overflow-wrap: anywhere; }
+.chan { display: flex; flex-wrap: wrap; gap: 6px; }
+.chan span { font: 600 0.7rem/1 var(--f-body); letter-spacing: .06em; text-transform: uppercase; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+
+footer { border-top: 1px solid var(--line); padding-block: 32px 40px; color: var(--muted); font-size: 0.875rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; }
+
+@media (max-width: 900px) {
+  .hero-grid, .two, .sim, .mobile-grid { grid-template-columns: 1fr; }
+  .flow { grid-template-columns: 1fr; }
+  .stage:not(:last-child)::after { right: auto; left: 50%; top: auto; bottom: -22px; transform: translateX(-50%) rotate(135deg); }
+  .phone-col { justify-items: center; }
+  .out-row { grid-template-columns: auto 1fr; }
+  .out-row .oled-wrap { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .phone.alarm, .notif.lv-crit:not(.acked), .notif.fresh, .buzzer.on .wave { animation: none; }
+  .buzzer.on .wave { opacity: 1; }
+}
+</style>
+
+<body data-level="ok">
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">Safemachine Thermoguard</div>
+    <nav aria-label="Seções">
+      <a href="#problema">Problema</a>
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#simulador">Simulador</a>
+      <a href="#celular">Celular do operário</a>
+    </nav>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero" aria-labelledby="h-hero">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">Indústria inteligente · Sistemas Embarcados</div>
+        <h1 id="h-hero">Safemachine <span>Thermoguard</span></h1>
+        <p class="lead">Sistema de monitoramento industrial que acompanha a temperatura de uma máquina, avisa no local com LEDs, buzzer e display, e manda o alerta para o celular do responsável.</p>
+        <div class="btnrow">
+          <a class="btn primary" href="#celular" style="text-decoration:none">Ver o aviso no celular</a>
+          <a class="btn" href="#simulador" style="text-decoration:none">Testar o simulador</a>
+        </div>
+      </div>
+
+      <div class="live" aria-live="off">
+        <div class="live-head">
+          <div>
+            <div class="live-name">Tear 07</div>
+            <!-- PLACEHOLDER: nome da máquina e do setor (troque pelo equipamento real do projeto) -->
+            <div class="live-sub">Setor de tecelagem · leitura ao vivo</div>
+          </div>
+          <span class="pill js-pill">Normal</span>
+        </div>
+        <div class="live-temp js-temp-big">48,0<small>°C</small></div>
+        <div class="scale"><i class="js-marker" style="left:35%"></i></div>
+        <div class="scale-labels"><span>20</span><span>60</span><span>80</span><span>100 °C</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEMA -->
+  <section id="problema" aria-labelledby="h-prob">
+    <div class="eyebrow">Contexto</div>
+    <h2 id="h-prob" style="margin-top:14px">Máquinas funcionam por horas.<br>O calor não avisa.</h2>
+    <div class="two">
+      <div class="block">
+        <h3>O problema</h3>
+        <ul class="list">
+          <li>Máquinas operando por longos períodos.</li>
+          <li>Risco de superaquecimento.</li>
+          <li>Demora na identificação de falhas.</li>
+          <li>Prejuízos e riscos à segurança.</li>
+        </ul>
+      </div>
+      <div class="block">
+        <h3>Quem sofre, e o que muda</h3>
+        <ul class="list">
+          <li>Operadores e técnicos de manutenção.</li>
+          <li>Monitoramento automático e contínuo.</li>
+          <li>Identificação de temperaturas anormais.</li>
+          <li>Alertas para os responsáveis.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMO FUNCIONA -->
+  <section id="como-funciona" aria-labelledby="h-flow">
+    <div class="eyebrow">Arquitetura</div>
+    <h2 id="h-flow" style="margin-top:14px">Medir, decidir, agir</h2>
+    <p class="lead">A leitura percorre três etapas. O ESP32 decide sozinho e aciona o aviso local; a rede só leva a informação adiante.</p>
+    <div class="flow">
+      <div class="stage">
+        <div class="stage-label">Medir</div>
+        <div class="item"><b>Máquina industrial</b><span>Gera calor e precisa ser monitorada.</span></div>
+        <div class="item"><b>Sensor DS18B20</b><span>Sensor digital de temperatura (1-Wire, de −55 a +125 °C). Envia a leitura ao ESP32.</span></div>
+      </div>
+      <div class="stage">
+        <div class="stage-label">Decidir</div>
+        <div class="item"><b>ESP32</b><span>Recebe o dado, compara com os limites e escolhe o estado.</span></div>
+        <div class="item"><b>Limites</b><span><code>&lt; 60 °C</code> normal · <code>60–80 °C</code> atenção · <code>&gt; 80 °C</code> crítico</span></div>
+      </div>
+      <div class="stage">
+        <div class="stage-label">Agir</div>
+        <div class="item"><b>No local</b><span>LEDs verde, amarelo e vermelho, buzzer para temperatura crítica e display com a leitura.</span></div>
+        <div class="item"><b>À distância</b><span>Wi-Fi → roteador → Internet → servidor MQTT → painel e celular, com horário, status e histórico.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SIMULADOR -->
+  <section id="simulador" aria-labelledby="h-sim">
+    <div class="eyebrow">Simulador</div>
+    <h2 id="h-sim" style="margin-top:14px">O ESP32 em funcionamento</h2>
+    <p class="lead">Arraste o controle para mudar a temperatura da máquina. Os atuadores, a mensagem MQTT e o celular reagem na hora.</p>
+
+    <div class="sim">
+      <div class="card ctrl">
+        <h3>Temperatura da máquina</h3>
+        <p class="sub">Leitura do DS18B20</p>
+        <div class="ctrl-temp">
+          <span class="sub">Leitura atual</span>
+          <output class="js-temp-out" for="temp-range">48,0 °C</output>
+        </div>
+        <input id="temp-range" type="range" min="20" max="100" step="0.5" value="48" aria-label="Temperatura da máquina em graus Celsius">
+        <div class="scale-labels"><span>20</span><span>60</span><span>80</span><span>100 °C</span></div>
+        <div class="btnrow" role="group" aria-label="Cenários">
+          <button class="btn" data-scn="45">Operação normal</button>
+          <button class="btn" data-scn="72">Aquecendo</button>
+          <button class="btn" data-scn="92">Superaquecimento</button>
+        </div>
+        <div class="btnrow">
+          <button class="btn" id="sound-btn" aria-pressed="false">Som do buzzer: desligado</button>
+        </div>
+        <p class="hint">O buzzer toca enquanto a temperatura passar de 80 °C, independente de alguém confirmar o aviso no celular.</p>
+      </div>
+
+      <div class="card">
+        <h3>Saídas do ESP32</h3>
+        <p class="sub">Atuadores locais</p>
+        <div class="out-row">
+          <div>
+            <div class="leds" role="img" aria-label="LEDs de estado">
+              <div class="led" data-led="ok"></div>
+              <div class="led" data-led="warn"></div>
+              <div class="led" data-led="crit"></div>
+            </div>
+            <div class="cap">LEDs</div>
+          </div>
+          <div>
+            <svg class="buzzer" id="buzzer" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Buzzer">
+              <path d="M8 19h8l10-8v26l-10-8H8z" fill="currentColor" fill-opacity=".2"/>
+              <path class="wave" d="M32 18c2.6 3.4 2.6 8.6 0 12"/>
+              <path class="wave" d="M37 13c5 6 5 16 0 22"/>
+            </svg>
+            <div class="cap">Buzzer</div>
+          </div>
+          <div class="oled-wrap">
+            <div class="oled" id="oled" role="img" aria-label="Display do equipamento">Temp: 48.0°C<br>Status: Normal<br>12:00</div>
+            <div class="cap">Display</div>
+          </div>
+        </div>
+
+        <div class="rules" id="rules">
+          <div class="rule" data-r="ok"><code>&lt; 60 °C</code><span>Normal. LED verde, só monitora.</span></div>
+          <div class="rule" data-r="warn"><code>60–80 °C</code><span>Atenção. LED amarelo e aviso no painel.</span></div>
+          <div class="rule" data-r="crit"><code>&gt; 80 °C</code><span>Crítico. LED vermelho, buzzer e alerta no painel e no celular.</span></div>
+        </div>
+
+        <div class="mqtt">
+          <div class="cap" style="margin:0 0 8px">Mensagem enviada por Wi-Fi (MQTT)</div>
+          <!-- PLACEHOLDER: tópico MQTT e nome da máquina; ajuste para o broker usado no projeto -->
+          <code id="mqtt"></code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CELULAR DO OPERÁRIO -->
+  <section id="celular" aria-labelledby="h-mob">
+    <div class="eyebrow">Celular do operário</div>
+    <h2 id="h-mob" style="margin-top:14px">Como o aviso chega a quem está na linha</h2>
+    <p class="lead">Dispare um cenário e veja o que o operário recebe. Toque no aviso para abrir o aplicativo, confirmar ciência e acionar a manutenção.</p>
+
+    <div class="mobile-grid">
+      <div class="phone-col">
+        <div class="btnrow" role="group" aria-label="Disparar cenário">
+          <button class="btn" data-scn="45">Normal</button>
+          <button class="btn" data-scn="72">Atenção</button>
+          <button class="btn danger" data-scn="92">Disparar crítico</button>
+        </div>
+
+        <div class="phone" id="phone">
+          <!-- Tela bloqueada -->
+          <div class="ph-screen lock" id="screen-lock">
+            <div class="statusbar"><span class="js-clock-sm">12:00</span>
+              <span class="sb-r">
+                <svg viewBox="0 0 16 12" fill="currentColor" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="4.3" y="5.5" width="3" height="6.5" rx="1"/><rect x="8.6" y="3" width="3" height="9" rx="1"/><rect x="13" y="0" width="3" height="12" rx="1"/></svg>
+                <svg viewBox="0 0 24 12" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1" y="1" width="19" height="10" rx="3"/><rect x="3" y="3" width="12" height="6" rx="1.5" fill="currentColor" stroke="none"/><path d="M22 4v4" stroke-linecap="round"/></svg>
+              </span>
+            </div>
+            <div class="clock"><div class="t js-clock">12:00</div><div class="d js-date"></div></div>
+            <div class="notifs" id="notifs" aria-live="polite"></div>
+            <div class="homebar"></div>
+          </div>
+
+          <!-- Aplicativo -->
+          <div class="ph-screen app" id="screen-app" hidden>
+            <div class="statusbar"><span class="js-clock-sm">12:00</span>
+              <span class="sb-r">
+                <svg viewBox="0 0 16 12" fill="currentColor" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="4.3" y="5.5" width="3" height="6.5" rx="1"/><rect x="8.6" y="3" width="3" height="9" rx="1"/><rect x="13" y="0" width="3" height="12" rx="1"/></svg>
+                <svg viewBox="0 0 24 12" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1" y="1" width="19" height="10" rx="3"/><rect x="3" y="3" width="12" height="6" rx="1.5" fill="currentColor" stroke="none"/><path d="M22 4v4" stroke-linecap="round"/></svg>
+              </span>
+            </div>
+            <div class="app-body">
+              <div class="app-head">
+                <div><b>Tear 07</b><small>Setor de tecelagem</small></div>
+                <span class="ph-pill js-ph-pill">Normal</span>
+              </div>
+              <div class="big js-ph-temp">48,0<small>°C</small></div>
+              <div class="ph-scale"><i class="js-ph-marker" style="left:35%"></i></div>
+              <div class="ph-card">
+                <h5>Últimos 2 minutos</h5>
+                <svg class="spark" id="spark" viewBox="0 0 260 86" preserveAspectRatio="none" role="img" aria-label="Gráfico da temperatura"></svg>
+              </div>
+              <div class="app-acts">
+                <button class="app-btn main" id="btn-ack" hidden>Confirmar ciência</button>
+                <button class="app-btn" id="btn-maint" hidden>Acionar manutenção</button>
+                <p class="app-note" id="app-note" hidden></p>
+              </div>
+              <div class="ph-card">
+                <h5>Histórico de alertas</h5>
+                <ul class="hist" id="hist"></ul>
+              </div>
+            </div>
+            <div class="homebar"></div>
+          </div>
+        </div>
+
+        <div class="seg" role="group" aria-label="Tela do celular">
+          <button data-view="lock" aria-pressed="true">Tela bloqueada</button>
+          <button data-view="app" aria-pressed="false">Aplicativo</button>
+        </div>
+      </div>
+
+      <div class="levels">
+        <div class="lvl on" data-l="ok">
+          <div class="lvl-head"><span class="pill">Normal</span><span class="lvl-range">abaixo de 60 °C</span></div>
+          <p><b>Nenhum aviso.</b> O aplicativo mostra a temperatura e o gráfico em verde. O operário não é interrompido.</p>
+        </div>
+        <div class="lvl" data-l="warn">
+          <div class="lvl-head"><span class="pill">Atenção</span><span class="lvl-range">60 a 80 °C</span></div>
+          <p><b>Notificação silenciosa</b> na tela bloqueada, com a temperatura e o limite. Serve para acompanhar a máquina antes que o problema cresça.</p>
+        </div>
+        <div class="lvl" data-l="crit">
+          <div class="lvl-head"><span class="pill">Crítico</span><span class="lvl-range">acima de 80 °C</span></div>
+          <p><b>Notificação com vibração</b> e botão para confirmar ciência. O aviso fica em destaque até alguém confirmar. O mesmo alerta segue por e-mail, aplicativo e SMS.</p>
+          <div class="chan"><span>Aplicativo</span><span>E-mail</span><span>SMS</span></div>
+          <div class="sms" id="sms"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Leandro Barros, Luciana Yamaguchi e Matheus Garcia</span>
+    <!-- PLACEHOLDER: nome da disciplina, professor(a) e instituição -->
+    <span>Projeto de Sistemas Embarcados · demonstração simulada</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  // PLACEHOLDER: limites de temperatura (°C). Altere aqui se o projeto usar outros valores.
+  var LIM = { warn: 60, crit: 80 };
+  // PLACEHOLDER: nome da máquina usado nos avisos e na mensagem MQTT.
+  var MACHINE = 'Tear 07';
+  var MACHINE_ID = 'tear-07';
+
+  var LV = { ok: 'Normal', warn: 'Atenção', crit: 'Crítico' };
+  var KEY = { ok: 'normal', warn: 'atencao', crit: 'critico' };
+  var q = function (s) { return document.querySelector(s); };
+  var qa = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+  var f1 = function (n) { return n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); };
+  var hm = function (d) { return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+  var hms = function (d) { return d.toLocaleTimeString('pt-BR', { hour12: false }); };
+  var levelOf = function (t) { return t > LIM.crit ? 'crit' : (t >= LIM.warn ? 'warn' : 'ok'); };
+  var clamp = function (v, a, b) { return Math.max(a, Math.min(b, v)); };
+
+  var temp = 48, target = 48, level = 'ok', acked = false, maint = false, tick = 0;
+  var readings = [];
+  for (var i = 0; i < 48; i++) readings.push(48 + Math.sin(i / 5) * 0.8);
+
+  // PLACEHOLDER: histórico de exemplo (horários de ontem/hoje); substitua por dados reais do servidor MQTT.
+  var now0 = Date.now();
+  var events = [
+    { level: 'ok', msg: 'Voltou ao normal · 55,0 °C', when: new Date(now0 - 14 * 60000) },
+    { level: 'warn', msg: 'Atenção · 64,1 °C', when: new Date(now0 - 31 * 60000) }
+  ];
+  var notifs = [
+    { level: 'warn', title: 'Atenção · ' + MACHINE, body: 'Temperatura em 64,1 °C, acima de 60 °C. Acompanhe a máquina.', when: new Date(now0 - 31 * 60000), acked: null, seed: true }
+  ];
+
+  var ICON = {
+    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19z"/><path d="M12 10v4M12 17.5v.01"/></svg>',
+    crit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4a2 2 0 1 1 4 0v9.2a4 4 0 1 1-4 0z"/></svg>',
+    ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>'
+  };
+
+  /* ---------- Som do buzzer ---------- */
+  var audio = null, soundOn = false;
+  function beep() {
+    try {
+      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.type = 'square'; o.frequency.value = 880; g.gain.value = 0.035;
+      o.connect(g); g.connect(audio.destination);
+      o.start(); o.stop(audio.currentTime + 0.14);
+    } catch (e) {}
+  }
+  q('#sound-btn').addEventListener('click', function () {
+    soundOn = !soundOn;
+    this.setAttribute('aria-pressed', String(soundOn));
+    this.textContent = 'Som do buzzer: ' + (soundOn ? 'ligado' : 'desligado');
+    if (soundOn) beep();
+  });
+
+  /* ---------- Mudança de estado ---------- */
+  function onLevelChange(next, prev) {
+    var t = temp, w = new Date();
+    if (next === 'ok') {
+      events.unshift({ level: 'ok', msg: 'Voltou ao normal · ' + f1(t) + ' °C', when: w });
+      pushNotif('ok', MACHINE + ' voltou ao normal', 'Temperatura em ' + f1(t) + ' °C, abaixo de 60 °C. Nenhuma ação necessária.', w);
+      acked = false; maint = false;
+    } else if (next === 'warn') {
+      events.unshift({ level: 'warn', msg: 'Atenção · ' + f1(t) + ' °C', when: w });
+      if (prev === 'ok') {
+        pushNotif('warn', 'Atenção · ' + MACHINE, 'Temperatura em ' + f1(t) + ' °C, acima de 60 °C. Acompanhe a máquina.', w);
+      } else {
+        pushNotif('warn', MACHINE + ' esfriou para a faixa de atenção', 'Temperatura em ' + f1(t) + ' °C. Continua acima de 60 °C.', w);
+      }
+    } else {
+      events.unshift({ level: 'crit', msg: 'Crítico · ' + f1(t) + ' °C', when: w });
+      acked = false; maint = false;
+      pushNotif('crit', 'CRÍTICO · ' + MACHINE + ' a ' + f1(t) + ' °C', 'Limite de 80 °C ultrapassado. Desligue a máquina e acione a manutenção.', w);
+    }
+    if (events.length > 12) events.length = 12;
+  }
+
+  function pushNotif(lv, title, body, when) {
+    notifs.unshift({ level: lv, title: title, body: body, when: when, acked: null, fresh: true });
+    if (notifs.length > 4) notifs.length = 4;
+    renderLock();
+  }
+
+  /* ---------- Renderização ---------- */
+  function ago(d) {
+    var s = (Date.now() - d.getTime()) / 1000;
+    return s < 60 ? 'agora' : hm(d);
+  }
+
+  function renderLock() {
+    var el = q('#notifs');
+    if (!notifs.length) {
+      el.innerHTML = '<p class="ph-empty">Nenhum aviso do Thermoguard.<br>' + MACHINE + ' operando normalmente.</p>';
+      return;
+    }
+    el.innerHTML = notifs.map(function (n, i) {
+      var acts = '';
+      if (n.level === 'crit') {
+        acts = n.acked
+          ? '<div class="n-done">Ciência confirmada às ' + hm(n.acked) + '</div>'
+          : '<div class="n-acts"><button class="main" data-act="ack">Confirmar ciência</button><button data-act="open">Abrir app</button></div>';
+      }
+      return '<article class="notif lv-' + n.level + (n.fresh ? ' fresh' : '') + (n.acked ? ' acked' : '') + '" data-i="' + i + '">' +
+        '<div class="n-top"><span class="n-ic">' + ICON[n.level] + '</span><span>Thermoguard</span><time data-w="' + n.when.getTime() + '">' + ago(n.when) + '</time></div>' +
+        '<h4>' + n.title + '</h4><p>' + n.body + '</p>' + acts + '</article>';
+    }).join('');
+    notifs.forEach(function (n) { n.fresh = false; });
+  }
+
+  function renderSpark() {
+    var W = 260, H = 86, lo = 20, hi = 100;
+    var y = function (v) { return H - 4 - ((clamp(v, lo, hi) - lo) / (hi - lo)) * (H - 8); };
+    var step = W / (readings.length - 1);
+    var pts = readings.map(function (v, i) { return (i * step).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ');
+    var last = readings[readings.length - 1];
+    var area = '0,' + H + ' ' + pts + ' ' + W + ',' + H;
+    q('#spark').innerHTML =
+      '<line x1="0" x2="' + W + '" y1="' + y(80) + '" y2="' + y(80) + '" stroke="var(--ph-crit)" stroke-opacity=".5" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/>' +
+      '<line x1="0" x2="' + W + '" y1="' + y(60) + '" y2="' + y(60) + '" stroke="var(--ph-warn)" stroke-opacity=".5" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/>' +
+      '<polygon points="' + area + '" fill="var(--pc)" fill-opacity=".12"/>' +
+      '<polyline points="' + pts + '" fill="none" stroke="var(--pc)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>' +
+      '<circle cx="' + W + '" cy="' + y(last) + '" r="3.5" fill="var(--pc)"/>';
+  }
+
+  function renderHist() {
+    q('#hist').innerHTML = events.slice(0, 5).map(function (e) {
+      return '<li class="lv-' + e.level + '"><span>' + e.msg + '</span><time>' + hm(e.when) + '</time></li>';
+    }).join('');
+  }
+
+  function render() {
+    var d = new Date();
+    document.body.dataset.level = level;
+    var tf = f1(temp), pct = ((clamp(temp, 20, 100) - 20) / 80 * 100) + '%';
+
+    qa('.js-temp-big').forEach(function (e) { e.innerHTML = tf + '<small>°C</small>'; });
+    qa('.js-ph-temp').forEach(function (e) { e.innerHTML = tf + '<small>°C</small>'; });
+    qa('.js-temp-out').forEach(function (e) { e.textContent = tf + ' °C'; });
+    qa('.js-pill').forEach(function (e) { e.textContent = LV[level]; });
+    qa('.js-ph-pill').forEach(function (e) { e.textContent = LV[level]; });
+    qa('.js-marker, .js-ph-marker').forEach(function (e) { e.style.left = pct; });
+    qa('.js-clock').forEach(function (e) { e.textContent = hm(d); });
+    qa('.js-clock-sm').forEach(function (e) { e.textContent = hm(d); });
+    qa('.js-date').forEach(function (e) { e.textContent = d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }); });
+
+    // Atuadores
+    qa('.led').forEach(function (e) { e.classList.toggle('on', e.dataset.led === level); });
+    q('#buzzer').classList.toggle('on', level === 'crit');
+    q('#oled').innerHTML = 'Temp: ' + temp.toFixed(1) + '°C<br>Status: ' + LV[level] + '<br>' + hm(d);
+    qa('.rule').forEach(function (e) { e.classList.toggle('on', e.dataset.r === level); });
+    qa('.lvl').forEach(function (e) { e.classList.toggle('on', e.dataset.l === level); });
+
+    // MQTT
+    q('#mqtt').textContent = '{ "maquina": "' + MACHINE_ID + '", "temp": ' + temp.toFixed(1) + ',\n  "status": "' + KEY[level] + '", "hora": "' + hms(d) + '" }';
+
+    // SMS
+    q('#sms').textContent = 'THERMOGUARD: ' + MACHINE + ' a ' + f1(temp > LIM.crit ? temp : 91.2) + ' °C (limite 80). Desligue e acione a manutenção.';
+
+    // Celular: app
+    var alarm = level === 'crit' && !acked;
+    q('#phone').classList.toggle('alarm', alarm);
+    q('#btn-ack').hidden = !alarm;
+    q('#btn-maint').hidden = level === 'ok' || maint;
+    var note = q('#app-note');
+    note.hidden = !(acked || maint);
+    note.textContent = maint ? 'Manutenção avisada (simulação).' : (acked ? 'Ciência confirmada.' : '');
+    renderSpark();
+    renderHist();
+
+    // Horários relativos
+    qa('time[data-w]').forEach(function (e) { e.textContent = ago(new Date(+e.dataset.w)); });
+  }
+
+  /* ---------- Ciclo de leitura (2 por segundo) ---------- */
+  setInterval(function () {
+    tick++;
+    var diff = target - temp;
+    if (Math.abs(diff) > 0.15) temp += clamp(diff, -2.2, 2.2);
+    readings.push(temp + (Math.random() - 0.5) * 0.4); if (readings.length > 48) readings.shift();
+    var next = levelOf(temp);
+    if (next !== level) { var prev = level; level = next; onLevelChange(next, prev); }
+    if (level === 'crit' && soundOn && tick % 2 === 0) beep();
+    render();
+  }, 500);
+
+  /* ---------- Eventos ---------- */
+  function setTemp(v, instant) {
+    target = clamp(v, 20, 100);
+    if (instant) temp = target;
+    q('#temp-range').value = target;
+  }
+  q('#temp-range').addEventListener('input', function () { setTemp(parseFloat(this.value), true); });
+  qa('[data-scn]').forEach(function (b) {
+    b.addEventListener('click', function () { setTemp(parseFloat(b.dataset.scn), false); });
+  });
+
+  function setView(v) {
+    q('#screen-lock').hidden = v !== 'lock';
+    q('#screen-app').hidden = v !== 'app';
+    qa('[data-view]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.view === v)); });
+  }
+  qa('[data-view]').forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
+
+  function ack() {
+    if (acked) return;
+    acked = true;
+    var w = new Date();
+    notifs.forEach(function (n) { if (n.level === 'crit' && !n.acked) n.acked = w; });
+    events.unshift({ level: 'info', msg: 'Ciência confirmada pelo operário', when: w });
+    renderLock(); render();
+  }
+  q('#btn-ack').addEventListener('click', ack);
+  q('#btn-maint').addEventListener('click', function () {
+    maint = true;
+    events.unshift({ level: 'info', msg: 'Manutenção acionada', when: new Date() });
+    render();
+  });
+  q('#notifs').addEventListener('click', function (e) {
+    var act = e.target.closest('[data-act]');
+    if (act && act.dataset.act === 'ack') { ack(); return; }
+    if (e.target.closest('.notif')) setView('app');
+  });
+
+  renderLock();
+  render();
+})();
+</script>
+
+</body></html>
